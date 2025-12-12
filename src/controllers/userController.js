@@ -67,9 +67,23 @@ async function getUserBookings(req, res, next) {
     }
 }
 
+/**
+ * Get booked seats for a show
+ */
+async function getBookedSeats(req, res, next) {
+    try {
+        const showId = parseInt(req.params.id);
+        const bookedSeats = await bookingService.getBookedSeatsForShow(showId);
+        res.json({ booked_seats: bookedSeats });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     getAvailableShows,
     getShowById,
     getBookingById,
-    getUserBookings
+    getUserBookings,
+    getBookedSeats
 };

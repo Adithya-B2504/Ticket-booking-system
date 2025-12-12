@@ -30,7 +30,7 @@ function validateFutureDate(dateString) {
  * Middleware to validate booking request
  */
 function validateBookingRequest(req, res, next) {
-    const { user_email, seats_booked } = req.body;
+    const { user_email, seat_numbers } = req.body;
 
     if (!user_email) {
         return res.status(400).json({ error: 'user_email is required' });
@@ -40,16 +40,27 @@ function validateBookingRequest(req, res, next) {
         return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    if (!seats_booked) {
-        return res.status(400).json({ error: 'seats_booked is required' });
+    if (!seat_numbers) {
+        return res.status(400).json({ error: 'seat_numbers is required' });
     }
 
-    if (!validatePositiveInteger(seats_booked)) {
-        return res.status(400).json({ error: 'seats_booked must be a positive integer' });
+    if (!Array.isArray(seat_numbers)) {
+        return res.status(400).json({ error: 'seat_numbers must be an array' });
     }
 
-    if (seats_booked > 10) {
+    if (seat_numbers.length === 0) {
+        return res.status(400).json({ error: 'seat_numbers cannot be empty' });
+    }
+
+    if (seat_numbers.length > 10) {
         return res.status(400).json({ error: 'Cannot book more than 10 seats at once' });
+    }
+
+    // Validate each seat number is a positive integer
+    for (const seat of seat_numbers) {
+        if (!validatePositiveInteger(seat)) {
+            return res.status(400).json({ error: 'All seat numbers must be positive integers' });
+        }
     }
 
     next();

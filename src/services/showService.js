@@ -41,8 +41,8 @@ async function getAvailableShows() {
             m.title as movie_title,
             m.description,
             m.duration_minutes,
-            COALESCE(SUM(CASE WHEN b.status = 'CONFIRMED' THEN b.seats_booked ELSE 0 END), 0) as booked_seats,
-            s.total_seats - COALESCE(SUM(CASE WHEN b.status = 'CONFIRMED' THEN b.seats_booked ELSE 0 END), 0) as available_seats
+            COALESCE(SUM(CASE WHEN b.status IN ('CONFIRMED', 'PENDING') THEN b.seats_booked ELSE 0 END), 0) as booked_seats,
+            s.total_seats - COALESCE(SUM(CASE WHEN b.status IN ('CONFIRMED', 'PENDING') THEN b.seats_booked ELSE 0 END), 0) as available_seats
         FROM shows s
         JOIN movies m ON s.movie_id = m.id
         LEFT JOIN bookings b ON s.id = b.show_id
@@ -87,7 +87,7 @@ async function calculateAvailableSeats(client, showId) {
     const bookedResult = await client.query(
         `SELECT COALESCE(SUM(seats_booked), 0) as total_booked 
          FROM bookings 
-         WHERE show_id = $1 AND status = 'CONFIRMED'`,
+         WHERE show_id = $1 AND status IN ('CONFIRMED', 'PENDING')`,
         [showId]
     );
 

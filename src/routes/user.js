@@ -10,6 +10,7 @@ const {
 // Show routes (user view)
 router.get('/shows', userController.getAvailableShows);
 router.get('/shows/:id', validateIdParam, userController.getShowById);
+router.get('/shows/:id/booked-seats', validateIdParam, userController.getBookedSeats);
 
 // Booking routes
 router.post('/shows/:id/book', validateIdParam, validateBookingRequest, bookingController.createBooking);

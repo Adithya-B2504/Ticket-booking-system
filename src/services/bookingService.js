@@ -6,7 +6,7 @@ const { getShowWithLock, calculateAvailableSeats } = require('./showService');
  * @param {Object} bookingData - Booking details
  * @returns {Promise<Object>} Booking result with status
  */
-async function createBooking({ show_id, user_email, seats_booked }) {
+async function createBooking({ show_id, user_email, seat_numbers }) {
     const client = await pool.connect();
 
     try {
@@ -24,6 +24,49 @@ async function createBooking({ show_id, user_email, seats_booked }) {
             };
         }
 
+        // Validate seat numbers
+        if (!Array.isArray(seat_numbers) || seat_numbers.length === 0) {
+            await client.query('ROLLBACK');
+            return {
+                success: false,
+                error: 'seat_numbers must be a non-empty array',
+                statusCode: 400
+            };
+        }
+
+        const seats_booked = seat_numbers.length;
+
+        // Check if any of the requested seats are already booked
+        const bookedSeatsResult = await client.query(
+            `SELECT DISTINCT unnest(seat_numbers) as seat_number
+             FROM bookings
+             WHERE show_id = $1 AND status IN ('PENDING', 'CONFIRMED')`,
+            [show_id]
+        );
+
+        const alreadyBookedSeats = bookedSeatsResult.rows.map(row => row.seat_number);
+        const conflictingSeats = seat_numbers.filter(seat => alreadyBookedSeats.includes(seat));
+
+        if (conflictingSeats.length > 0) {
+            await client.query('ROLLBACK');
+            return {
+                success: false,
+                error: `Seats already booked: ${conflictingSeats.join(', ')}`,
+                statusCode: 409
+            };
+        }
+
+        // Validate seat numbers are within range
+        const invalidSeats = seat_numbers.filter(seat => seat < 1 || seat > show.total_seats);
+        if (invalidSeats.length > 0) {
+            await client.query('ROLLBACK');
+            return {
+                success: false,
+                error: `Invalid seat numbers: ${invalidSeats.join(', ')}. Must be between 1 and ${show.total_seats}`,
+                statusCode: 400
+            };
+        }
+
         // Calculate available seats
         const availableSeats = await calculateAvailableSeats(client, show_id);
 
@@ -38,12 +81,12 @@ async function createBooking({ show_id, user_email, seats_booked }) {
             message = `Booking failed. Only ${availableSeats} seats available.`;
         }
 
-        // Insert booking record
+        // Insert booking record with seat_numbers
         const bookingResult = await client.query(
-            `INSERT INTO bookings (show_id, user_email, seats_booked, status) 
-             VALUES ($1, $2, $3, $4) 
+            `INSERT INTO bookings (show_id, user_email, seats_booked, seat_numbers, status) 
+             VALUES ($1, $2, $3, $4, $5) 
              RETURNING *`,
-            [show_id, user_email, seats_booked, bookingStatus]
+            [show_id, user_email, seats_booked, seat_numbers, bookingStatus]
         );
 
         await client.query('COMMIT');
@@ -189,6 +232,22 @@ async function getAllBookings() {
     return result.rows;
 }
 
+/**
+ * Get all booked seat numbers for a show
+ * @param {number} showId - Show ID
+ * @returns {Promise<Array>} Array of booked seat numbers
+ */
+async function getBookedSeatsForShow(showId) {
+    const result = await pool.query(
+        `SELECT DISTINCT unnest(seat_numbers) as seat_number
+         FROM bookings
+         WHERE show_id = $1 AND status IN ('PENDING', 'CONFIRMED')
+         ORDER BY seat_number`,
+        [showId]
+    );
+    return result.rows.map(row => row.seat_number);
+}
+
 module.exports = {
     createBooking,
     getBookingById,
@@ -196,5 +255,6 @@ module.exports = {
     confirmBooking,
     cancelBooking,
     expirePendingBookings,
-    getAllBookings
+    getAllBookings,
+    getBookedSeatsForShow
 };

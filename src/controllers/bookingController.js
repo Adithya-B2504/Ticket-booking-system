@@ -6,24 +6,24 @@ const bookingService = require('../services/bookingService');
 async function createBooking(req, res, next) {
     try {
         const showId = parseInt(req.params.id);
-        const { user_email, seats_booked } = req.body;
+        const { user_email, seat_numbers } = req.body;
 
-        if (!user_email || !seats_booked) {
+        if (!user_email || !seat_numbers) {
             return res.status(400).json({
-                error: 'user_email and seats_booked are required'
+                error: 'user_email and seat_numbers are required'
             });
         }
 
-        if (seats_booked <= 0) {
+        if (!Array.isArray(seat_numbers) || seat_numbers.length === 0) {
             return res.status(400).json({
-                error: 'seats_booked must be positive'
+                error: 'seat_numbers must be a non-empty array'
             });
         }
 
         const result = await bookingService.createBooking({
             show_id: showId,
             user_email,
-            seats_booked
+            seat_numbers
         });
 
         if (!result.success) {
